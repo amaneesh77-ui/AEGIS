@@ -1,0 +1,46 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+httpx==0.27.2
+pdfplumber==0.11.4
+python-docx==1.1.2
+python-pptx==1.0.2
+beautifulsoup4==4.12.3
+lxml==5.3.0
+whoosh==2.7.4
+chromadb==0.5.18
+spacy==3.7.6
+pydantic==2.9.2
+aiofiles==24.1.0
+python-magic-bin==0.4.14; sys_platform == "win32"
+python-magic==0.4.27; sys_platform != "win32"
+trafilatura==1.12.2
+openpyxl==3.1.5
+chardet==5.2.0
+python-dotenv==1.0.1
+
+# graph algorithms (knowledge graph path-finding / GraphML export)
+networkx==3.3
+
+# OCR (images, scanned/handwritten annotations)
+pytesseract==0.3.13
+Pillow==10.4.0
+
+# best-effort schematic spatial grounding (line/label proximity heuristic)
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+
+# corporate database ingestion (sqlite / generic DB introspection)
+sqlalchemy==2.0.35
+
+# cultural / language bias detection
+langdetect==1.0.9
+
+# offline machine translation (DE/FR/JA/ZH <-> EN, no internet at runtime)
+argostranslate==1.9.6
+sentencepiece==0.2.0
+
+# testing
+pytest==8.3.3
+pytest-asyncio==0.24.0
+reportlab==4.2.5   # used only by tests/sample_data/generate_samples.py to build fixtures
