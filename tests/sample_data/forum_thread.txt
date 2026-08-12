@@ -1,0 +1,1 @@
+Forum post: has anyone seen the ESP32-WROOM-32 module drop off Wi-Fi under load? We're running firmware v1.0.4 and using MQTT to a broker on the LAN. Suspect a possible attack surface if the broker is exposed - we found api_key = "letmein1234" hardcoded in one build, which needs fixing.
