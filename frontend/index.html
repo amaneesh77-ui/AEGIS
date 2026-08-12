@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEGIS - Vulnerability Research Platform</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<nav id="sidebar">
+  <div class="brand">
+    <span class="brand-logo">⬡</span>
+    <span class="brand-name">AEGIS</span>
+    <span class="offline-badge">OFFLINE</span>
+  </div>
+  <div class="nav-section">Workspace</div>
+  <a class="nav-item active" data-view="collections" onclick="showView('collections')"><span class="nav-icon">▤</span> Collections</a>
+  <a class="nav-item" data-view="documents" onclick="showView('documents')"><span class="nav-icon">◧</span> Documents</a>
+  <a class="nav-item" data-view="search" onclick="showView('search')"><span class="nav-icon">◎</span> Search</a>
+  <a class="nav-item" data-view="ai" onclick="showView('ai')"><span class="nav-icon">◈</span> AI assistant</a>
+  <div class="nav-section">Analysis</div>
+  <a class="nav-item" data-view="entities" onclick="showView('entities')"><span class="nav-icon">◉</span> Entities</a>
+  <a class="nav-item" data-view="graph" onclick="showView('graph')"><span class="nav-icon">◬</span> Knowledge graph</a>
+  <a class="nav-item" data-view="annotations" onclick="showView('annotations')"><span class="nav-icon">◪</span> Annotations</a>
+  <a class="nav-item" data-view="coverage" onclick="showView('coverage')"><span class="nav-icon">◔</span> Cultural coverage</a>
+  <a class="nav-item" data-view="audit" onclick="showView('audit')"><span class="nav-icon">◑</span> Audit log</a>
+  <div class="nav-section" style="margin-top:auto">System</div>
+  <div class="nav-status">
+    <div class="status-dot" id="ollama-dot"></div>
+    <span id="ollama-label">Checking…</span>
+  </div>
+  <a class="nav-item" data-view="settings" onclick="showView('settings')"><span class="nav-icon">◌</span> Settings</a>
+</nav>
+
+<main id="main">
+
+  <!-- Collections -->
+  <div id="view-collections" class="view active">
+    <div class="view-header">
+      <h1>Collections</h1>
+      <button class="btn-primary" onclick="openNewCollectionModal()">+ New collection</button>
+    </div>
+    <div id="collections-grid" class="collections-grid"></div>
+  </div>
+
+  <!-- Documents -->
+  <div id="view-documents" class="view">
+    <div class="view-header">
+      <h1>Documents</h1>
+      <div class="header-controls">
+        <select id="doc-collection-filter" onchange="loadDocuments(); toggleDeleteAll()"><option value="">All collections</option></select>
+        <button id="btn-delete-all-docs" class="btn-danger btn-sm" onclick="deleteAllDocs()" style="display:none">Delete all docs</button>
+        <select id="doc-status-filter" onchange="loadDocuments()">
+          <option value="">All statuses</option>
+          <option value="indexed">Indexed</option>
+          <option value="processing">Processing</option>
+          <option value="pending">Pending</option>
+          <option value="error">Error</option>
+        </select>
+        <label class="btn-secondary upload-btn">↑ Import files
+          <input type="file" id="file-upload" multiple
+            accept=".pdf,.docx,.doc,.pptx,.ppt,.html,.htm,.txt,.md,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.tif,.webp,.db,.sqlite,.sqlite3,.sql,.py,.js,.ts,.c,.h,.cpp,.hpp,.java,.go,.rs,.rb,.php,.cs,.json,.zip"
+            onchange="uploadFiles()" style="display:none">
+        </label>
+        <label class="btn-secondary upload-btn" style="background:var(--accent);color:#fff;font-weight:600">⬡ Import CVE JSON
+          <input type="file" id="cve-file-input" accept=".json,.json.gz" onchange="openCVEImport()" style="display:none">
+        </label>
+      </div>
+    </div>
+    <div id="upload-collection-bar" class="upload-bar" style="display:none">
+      <span id="upload-bar-label">Upload to collection:</span>
+      <select id="upload-collection-select"></select>
+      <button class="btn-primary" onclick="confirmUpload()">Confirm upload</button>
+      <button class="btn-ghost" onclick="cancelUpload()">Cancel</button>
+    </div>
+    <div id="cve-import-bar" class="upload-bar" style="display:none">
+      <span>Import CVE JSON to:</span>
+      <select id="cve-collection-select"></select>
+      <button class="btn-primary" onclick="confirmCVEUpload()">Start import</button>
+      <button class="btn-ghost" onclick="cancelCVEUpload()">Cancel</button>
+    </div>
+    <div id="ingest-progress" class="ingest-progress" style="display:none">
+      <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+      <span id="progress-label">Processing…</span>
+    </div>
+    <div id="cve-progress" class="ingest-progress" style="display:none">
+      <div class="progress-bar"><div id="cve-progress-fill" class="progress-fill" style="background:var(--accent)"></div></div>
+      <span id="cve-progress-label">Importing CVEs…</span>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Filename</th><th>Collection</th><th>Type</th><th>Pages</th><th>Words</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="documents-tbody"></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="7" id="doc-count-footer" style="text-align:right;color:var(--muted);font-size:12px;padding:8px 12px"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- Search -->
+  <div id="view-search" class="view">
+    <div class="view-header"><h1>Search corpus</h1></div>
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Search - natural language, part numbers, CVEs, protocols…" onkeydown="if(event.key==='Enter') doSearch()">
+      <select id="search-collection"><option value="">All collections</option></select>
+      <select id="search-mode">
+        <option value="hybrid">Hybrid (BM25 + semantic)</option>
+        <option value="keyword">Keyword only</option>
+        <option value="semantic">Semantic only</option>
+      </select>
+      <button class="btn-primary" onclick="doSearch()">Search</button>
+    </div>
+    <div id="search-meta" class="search-meta"></div>
+    <div id="search-results" class="search-results"></div>
+  </div>
+
+  <!-- AI -->
+  <div id="view-ai" class="view">
+    <div class="view-header">
+      <h1>AI assistant</h1>
+      <select id="ai-collection-select" onchange="refreshConversationList()"><option value="">All collections</option></select>
+      <select id="ai-conversation-select" onchange="loadConversationSelected()" style="max-width:260px">
+        <option value="">New conversation</option>
+      </select>
+      <button class="btn-ghost btn-sm" onclick="clearAIChat()" style="margin-left:auto">New conversation</button>
+    </div>
+    <div id="ai-suggestion-banner" class="suggestion-banner" style="display:none"></div>
+    <div id="ai-confidence-badge" class="confidence-badge" style="display:none"></div>
+    <div id="ai-coverage-label" class="coverage-label" style="display:none"></div>
+    <div id="ai-sources-panel" class="sources-panel" style="display:none">
+      <div class="sources-title">Retrieved sources</div>
+      <div id="ai-sources-list"></div>
+    </div>
+    <div id="ai-chat" class="ai-chat"></div>
+    <div class="ai-input-row">
+      <textarea id="ai-input" placeholder="Ask anything about your indexed documents…" rows="3"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIQuery()}"></textarea>
+      <button class="btn-primary" onclick="sendAIQuery()">Ask ↵</button>
+    </div>
+    <div class="ai-hint">Shift+Enter for new line · Enter to send · All answers cite sources · conversations are saved automatically and can be resumed for weeks</div>
+  </div>
+
+  <!-- Entities -->
+  <div id="view-entities" class="view">
+    <div class="view-header">
+      <h1>Extracted entities</h1>
+      <select id="entities-collection" onchange="loadEntities()"><option value="">All collections</option></select>
+    </div>
+    <div class="entity-type-tabs" id="entity-tabs"></div>
+    <div id="entities-list" class="entities-list"></div>
+  </div>
+
+  <!-- Knowledge graph -->
+  <div id="view-graph" class="view" style="padding-right:0">
+    <div class="view-header" style="padding-right:40px">
+      <h1>Knowledge graph</h1>
+      <select id="graph-collection" onchange="loadGraph()"><option value="">All collections</option></select>
+      <div class="header-controls">
+        <button class="btn-secondary btn-sm" onclick="resetGraphSim()">Reset</button>
+        <button class="btn-secondary btn-sm" onclick="exportGraphJSON()">Export JSON</button>
+      </div>
+    </div>
+    <div class="graph-legend" id="graph-legend"></div>
+    <div class="graph-toolbar" style="padding-right:40px">
+      <input type="text" id="graph-filter" placeholder="Filter nodes by label…" oninput="filterGraph(this.value)" style="width:220px">
+      <span id="graph-stats" class="graph-stats"></span>
+      <span style="flex:1"></span>
+      <span style="font-size:12px;color:var(--muted)">Drag to move · Scroll to zoom · Click node for details</span>
+    </div>
+    <div class="graph-wrap">
+      <canvas id="graph-canvas"></canvas>
+      <div id="graph-tooltip" class="graph-tooltip" style="display:none"></div>
+      <div id="graph-empty" class="graph-empty" style="display:none">No entities indexed yet. Import documents first.</div>
+    </div>
+  </div>
+
+  <!-- Annotations -->
+  <div id="view-annotations" class="view">
+    <div class="view-header">
+      <h1>Annotations</h1>
+      <select id="ann-collection-filter" onchange="loadAnnotations()"><option value="">All collections</option></select>
+    </div>
+    <div class="ann-kind-tabs">
+      <button class="tab-btn active" onclick="setAnnFilter('all',this)">All</button>
+      <button class="tab-btn" onclick="setAnnFilter('note',this)">Notes</button>
+      <button class="tab-btn" onclick="setAnnFilter('highlight',this)">Highlights</button>
+      <button class="tab-btn" onclick="setAnnFilter('bookmark',this)">Bookmarks</button>
+      <button class="tab-btn" onclick="setAnnFilter('flag',this)">Flags</button>
+    </div>
+    <div id="annotations-list" class="annotations-full-list"></div>
+  </div>
+
+  <!-- Cultural / language coverage -->
+  <div id="view-coverage" class="view">
+    <div class="view-header">
+      <h1>Cultural coverage</h1>
+      <select id="coverage-collection" onchange="loadCoverage()"><option value="">Select a collection…</option></select>
+    </div>
+    <div class="settings-section">
+      <h3>Bias policy for this collection</h3>
+      <p style="color:var(--muted);font-size:13px;max-width:640px">
+        <strong>Off</strong> - no checks. <strong>Suggestive</strong> - flag language/coverage gaps for you to act on.
+        <strong>Proactive</strong> - additionally search the loaded corpus for a matching non-English source and offer an offline translation with provenance.
+      </p>
+      <label>Policy
+        <select id="coverage-policy">
+          <option value="off">Off</option>
+          <option value="suggestive" selected>Suggestive</option>
+          <option value="proactive">Proactive</option>
+        </select>
+      </label>
+      <label>Vendor / manufacturer country (optional, improves gap detection)
+        <input type="text" id="coverage-vendor-country" placeholder="e.g. Germany, Japan, China…">
+      </label>
+      <button class="btn-primary btn-sm" onclick="saveCoveragePolicy()">Save policy</button>
+    </div>
+    <div id="coverage-audit" class="settings-section"></div>
+    <div class="settings-section">
+      <h3>Offline translator</h3>
+      <p style="color:var(--muted);font-size:13px">Runs fully offline via bundled language packages (German, French, Japanese, Chinese ⇄ English). No text leaves this machine.</p>
+      <textarea id="translate-input" rows="3" placeholder="Paste text to translate…" style="width:100%;max-width:640px"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <select id="translate-source" title="Auto-detect can misread very short text - set this explicitly if the result looks wrong">
+          <option value="">Auto-detect source</option>
+          <option value="en">English</option>
+          <option value="de">German</option>
+          <option value="fr">French</option>
+          <option value="ja">Japanese</option>
+          <option value="zh">Chinese</option>
+        </select>
+        <span style="color:var(--muted)">→</span>
+        <select id="translate-target">
+          <option value="en">English</option>
+          <option value="de">German</option>
+          <option value="fr">French</option>
+          <option value="ja">Japanese</option>
+          <option value="zh">Chinese</option>
+        </select>
+        <button class="btn-secondary btn-sm" onclick="runTranslate()">Translate</button>
+      </div>
+      <div style="color:var(--muted);font-size:11px;margin-top:4px">Auto-detect can be unreliable on very short text (e.g. a name or a few words) - pick the source language explicitly if the translation looks off.</div>
+      <div id="translate-output" class="chunk-card" style="margin-top:10px;display:none"></div>
+    </div>
+  </div>
+
+  <!-- Audit log -->
+  <div id="view-audit" class="view">
+    <div class="view-header"><h1>Audit log</h1></div>
+    <table class="data-table">
+      <thead><tr><th>Time</th><th>Action</th><th>Detail</th></tr></thead>
+      <tbody id="audit-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Settings -->
+  <div id="view-settings" class="view">
+    <div class="view-header"><h1>Settings</h1></div>
+    <div class="settings-section">
+      <h3>AI / Ollama status</h3>
+      <div id="settings-ai-status" class="settings-status"></div>
+      <label>Active LLM model
+        <select id="settings-model"></select>
+      </label>
+    </div>
+    <div class="settings-section">
+      <h3>User profile &amp; adaptation</h3>
+      <label>Preferred answer style
+        <select id="profile-answer-style">
+          <option value="concise">Concise</option>
+          <option value="detailed">Detailed</option>
+        </select>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;flex-direction:row">
+        <input type="checkbox" id="profile-proactive" style="width:auto">
+        Proactively suggest frequently-asked topics
+      </label>
+      <button class="btn-primary btn-sm" onclick="saveProfile()">Save preferences</button>
+      <div id="profile-topics" style="margin-top:12px;color:var(--muted);font-size:13px"></div>
+    </div>
+    <div class="settings-section">
+      <h3>Data storage</h3>
+      <p style="color:var(--muted);font-size:13px">All data is stored in the <code>data\</code>
+        folder inside the AEGIS project directory. Nothing leaves your machine.
+        Back up this folder to preserve all indexed documents and annotations.</p>
+    </div>
+    <div class="settings-section">
+      <h3>API documentation</h3>
+      <p style="color:var(--muted);font-size:13px">
+        Interactive Swagger UI: <a href="/api/docs" target="_blank">/api/docs</a><br>
+        ReDoc: <a href="/api/redoc" target="_blank">/api/redoc</a>
+      </p>
+    </div>
+  </div>
+
+</main>
+
+<!-- Modals -->
+<div id="modal-overlay" class="modal-overlay" onclick="closeModal()" style="display:none">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title"></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Toast notifications -->
+<div id="toast-container"></div>
+
+<!-- Document viewer panel -->
+<div id="doc-panel" class="doc-panel" style="display:none">
+  <div class="doc-panel-header">
+    <span id="doc-panel-title"></span>
+    <button onclick="closeDocPanel()">✕</button>
+  </div>
+  <div id="doc-panel-meta" class="doc-panel-meta"></div>
+
+  <div class="ann-add-bar" id="ann-add-bar" style="display:none">
+    <input type="text" id="ann-note-input" placeholder="Note text…" style="flex:1">
+    <select id="ann-kind-select">
+      <option value="note">Note</option>
+      <option value="highlight">Highlight</option>
+      <option value="bookmark">Bookmark</option>
+      <option value="flag">Flag</option>
+    </select>
+    <button class="btn-primary btn-sm" onclick="submitAnnotation()">Save</button>
+    <button class="btn-ghost btn-sm" onclick="hideAnnBar()">✕</button>
+  </div>
+
+  <div class="doc-panel-tabs">
+    <button class="doc-tab active" onclick="switchDocTab('chunks',this)">Text</button>
+    <button class="doc-tab" onclick="switchDocTab('entities',this)">Entities</button>
+    <button class="doc-tab" onclick="switchDocTab('anns',this)">Notes</button>
+  </div>
+  <div id="doc-tab-chunks"   class="doc-panel-chunks"></div>
+  <div id="doc-tab-entities" class="doc-panel-chunks" style="display:none"></div>
+  <div id="doc-tab-anns"     class="doc-panel-chunks" style="display:none"></div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
